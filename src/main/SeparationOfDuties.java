@@ -38,7 +38,13 @@ public class SeparationOfDuties {
 						System.out.println("Load existing fragmentation?[y|n]");
 						System.out.print("fragDB> ");
 						String tmp=sc.next();
-						while(!tmp.toLowerCase().equals("y") && !tmp.toLowerCase().equals("n") && !tmp.toLowerCase().equals("exit") && !tmp.toLowerCase().equals("exit;")){
+						while(!tmp.toLowerCase().equals("y") && !tmp.toLowerCase().equals("n")){
+							if(tmp.toLowerCase().replaceAll("\\s", "").equals(new String("exit;").toLowerCase())){
+								System.exit(0);
+							}
+							else if(tmp.toLowerCase().replaceAll("\\s", "").equals(new String("exit").toLowerCase())){
+								System.exit(0);
+							}
 							System.out.println("Load existing fragmentation?[y|n]");
 							System.out.print("fragDB> ");
 							tmp=sc.next();

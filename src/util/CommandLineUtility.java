@@ -70,6 +70,12 @@ public class CommandLineUtility {
 					System.out.print("fragDB> ");
 					String tmp=sc.nextLine();
 					while(!tmp.toLowerCase().equals("y") && !tmp.toLowerCase().equals("n")){
+						if(tmp.toLowerCase().replaceAll("\\s", "").equals(new String("exit;").toLowerCase())){
+							System.exit(0);
+						}
+						else if(tmp.toLowerCase().replaceAll("\\s", "").equals(new String("exit").toLowerCase())){
+							System.exit(0);
+						}
 						System.out.println("Existing fragmentation found, do you want to load it?[y|n]");
 						System.out.print("fragDB> ");
 						tmp=sc.nextLine();
@@ -81,14 +87,6 @@ public class CommandLineUtility {
 					else if(tmp.toLowerCase().equals("n")){
 						
 					}
-					else if(query.toLowerCase().replaceAll("\\s", "").equals(new String("exit;").toLowerCase())){
-						System.exit(0);
-					}
-					else if(query.toLowerCase().replaceAll("\\s", "").equals(new String("exit").toLowerCase())){
-						System.exit(0);
-					}
-					
-					
 				}
 				catch(Exception e){
 					

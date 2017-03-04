@@ -125,7 +125,7 @@ public class DistributedDatabaseClient implements Serializable {
 				time1 = System.currentTimeMillis();
 				sq = qr.evaluableOnSingleServer(query);
 			} catch (Exception e) {
-				//e.printStackTrace();
+				// e.printStackTrace();
 				return null;
 			}
 			if (sq != null) {
@@ -218,6 +218,119 @@ public class DistributedDatabaseClient implements Serializable {
 		return new BenchmarkResultSet(rs, time2 - time1, time4 - time3, involvedServerCount, involvedServerFragments);
 	}
 
+	// method to explain queries
+	public void explain(String query, String method, int timeout) throws Exception {
+		String explain="EXPLAIN ANALYZE ";
+		int involvedServerCount = 0;
+		int involvedServerFragments = 0;
+		long time1 = 0;
+		long time2 = 0;
+		long time3 = 0;
+		long time4 = 0;
+		boolean fdw = true;
+		if (method.equals("dblink")) {
+			fdw = false;
+		}
+		ResultSet rs = null;
+		if (method.equals("single")) {
+			ServerQuery sq = null;
+			try {
+				time1 = System.currentTimeMillis();
+				sq = qr.evaluableOnSingleServer(query);
+			} catch (Exception e) {
+				// e.printStackTrace();
+			}
+			if (sq != null) {
+				sq.rewrite(suffix);
+				time2 = System.currentTimeMillis();
+				Server server = sq.getServer().iterator().next();
+				time3 = System.currentTimeMillis();
+				Connection connection = server.getConnection();
+				Statement statement = connection.createStatement();
+				if (timeout > 0) {
+					try {
+						connection.setAutoCommit(false);
+						statement.executeUpdate("SET LOCAL statement_timeout=" + timeout + ";");
+						rs = statement.executeQuery(explain+sq.getQuery());
+						connection.commit();
+					} catch (Exception e) {
+						System.out.println(e.getMessage());
+						connection.close();
+					}
+				} else {
+					rs = server.executeQuery(explain+sq.getQuery());
+				}
+				time4 = System.currentTimeMillis();
+			} else {
+
+			}
+		}
+		Connection connection = frag_owner.getConnection();
+		Statement statement = connection.createStatement();
+		if (method.equals("view")) {
+			time3 = System.currentTimeMillis();
+			if (timeout > 0) {
+				try {
+					connection.setAutoCommit(false);
+					statement.executeUpdate("SET LOCAL statement_timeout=" + timeout + ";");
+					rs = statement.executeQuery(explain+query);
+					connection.commit();
+				} catch (Exception e) {
+					System.out.println(e.getMessage());
+					connection.close();
+				}
+			} else {
+				rs = frag_owner.executeQuery(explain+query + ";");
+			}
+			time4 = System.currentTimeMillis();
+			Set<Server> involvedServers = new HashSet<Server>();
+			for (String tablename : tablenameToTable.keySet()) {
+				if (query.toLowerCase().contains(tablename)) {
+					involvedServerCount += viewCount.get(tablename);
+					if (viewToServer.containsKey(tablename)) {
+						involvedServers.addAll(viewToServer.get(tablename));
+					}
+				}
+			}
+		} else {
+			String parsedQuery = "";
+			time1 = System.currentTimeMillis();
+			parsedQuery = rewrite(query, fdw);
+			time2 = System.currentTimeMillis();
+
+			for (Server server : serverToAttribute.keySet()) {
+				if (parsedQuery.toLowerCase().contains(server.getName().toLowerCase())) {
+					involvedServerCount++;
+				}
+				for (String table : tablenameToTable.keySet()) {
+					if (parsedQuery.toLowerCase().contains(server.getName().toLowerCase() + "_" + table + "_frag")) {
+						involvedServerFragments++;
+					}
+				}
+			}
+			time3 = System.currentTimeMillis();
+			if (timeout > 0) {
+				try {
+					connection.setAutoCommit(false);
+					statement.executeUpdate("SET LOCAL statement_timeout=" + timeout + ";");
+					rs = statement.executeQuery(explain+parsedQuery + ";");
+					connection.commit();
+				} catch (Exception e) {
+					System.out.println(e.getMessage());
+					connection.close();
+				}
+			} else {
+				rs = statement.executeQuery(explain+parsedQuery + ";");
+			}
+			time4 = System.currentTimeMillis();
+
+		}
+		while (rs.next())
+		{
+		   System.out.println(rs.getString(1));
+		}
+	}
+
 	// method to execute queries - uses a single server if possible
 	public BenchmarkResultSet executeQuery(String query, String method, boolean singleServer) throws Exception {
 		int involvedServerCount = 0;
@@ -238,7 +351,7 @@ public class DistributedDatabaseClient implements Serializable {
 				time1 = System.currentTimeMillis();
 				sq = qr.evaluableOnSingleServer(query);
 			} catch (Exception e) {
-				//e.printStackTrace();
+				// e.printStackTrace();
 				return null;
 			}
 			if (sq != null) {
@@ -309,7 +422,7 @@ public class DistributedDatabaseClient implements Serializable {
 			try {
 				statement.executeUpdate(query);
 			} catch (Exception e) {
-				//e.printStackTrace();
+				// e.printStackTrace();
 			}
 			time4 = System.currentTimeMillis();
 			Set<Server> involvedServers = new HashSet<Server>();
@@ -344,7 +457,7 @@ public class DistributedDatabaseClient implements Serializable {
 			time4 = System.currentTimeMillis();
 		} catch (Exception e) {
 			if (!e.getMessage().equals("Die Abfrage lieferte kein Ergebnis.")) {
-				//e.printStackTrace();
+				// e.printStackTrace();
 				throw e;
 			}
 
@@ -418,10 +531,10 @@ public class DistributedDatabaseClient implements Serializable {
 		serverToAttribute();
 		ExecutorService executor = Executors.newFixedThreadPool(threads);
 
-		executor.submit(new prepareThread(new Server(frag_owner),new Server(frag_owner) ,suffix, batchsize));
+		executor.submit(new prepareThread(new Server(frag_owner), new Server(frag_owner), suffix, batchsize));
 		for (Server server : serverToAttribute.keySet()) {
 			if (!server.isOwner()) {
-				executor.submit(new prepareThread(server,new Server(frag_owner), suffix, batchsize));
+				executor.submit(new prepareThread(server, new Server(frag_owner), suffix, batchsize));
 			}
 		}
 		executor.shutdown();
@@ -660,11 +773,11 @@ public class DistributedDatabaseClient implements Serializable {
 					connection.setAutoCommit(false);
 					Statement stmt = connection.createStatement();
 					createForeignTable = "IMPORT FOREIGN SCHEMA public LIMIT TO(" + server.getName() + "_" + tname
-							+ suffix + " ) FROM SERVER " + server.getName() + " INTO public"+";";
-					//System.out.println(createForeignTable);
+							+ suffix + " ) FROM SERVER " + server.getName() + " INTO public" + ";";
+					// System.out.println(createForeignTable);
 					stmt.executeUpdate(createForeignTable);
 					connection.commit();
-				}	
+				}
 				connection = new Server(frag_owner).getConnection();
 				connection.setAutoCommit(false);
 				Statement stmt = connection.createStatement();
@@ -699,11 +812,11 @@ public class DistributedDatabaseClient implements Serializable {
 		int batchsize;
 		Server frag_owner;
 
-		public prepareThread(Server server,Server frag_owner, String suffix, int batchsize) {
+		public prepareThread(Server server, Server frag_owner, String suffix, int batchsize) {
 			this.server = server;
 			this.suffix = suffix;
 			this.batchsize = batchsize;
-			this.frag_owner=frag_owner;
+			this.frag_owner = frag_owner;
 		}
 
 		public void run() {
@@ -755,8 +868,9 @@ public class DistributedDatabaseClient implements Serializable {
 					stmt.executeUpdate("CREATE SERVER " + server.getName()
 							+ " FOREIGN DATA WRAPPER postgres_fdw OPTIONS(dbname '" + dbname + suffix + "'," + "host '"
 							+ server.getHost() + "', use_remote_estimate 'true');");
-					stmt.executeUpdate("CREATE USER MAPPING FOR "+frag_owner.getUsername()+" SERVER " + server.getName() + " OPTIONS(user '"
-							+ server.getUsername() + "',password '" + server.getPassword() + "');");
+					stmt.executeUpdate("CREATE USER MAPPING FOR " + frag_owner.getUsername() + " SERVER "
+							+ server.getName() + " OPTIONS(user '" + server.getUsername() + "',password '"
+							+ server.getPassword() + "');");
 
 					stmt.close();
 
