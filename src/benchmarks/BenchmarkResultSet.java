@@ -12,6 +12,7 @@ public class BenchmarkResultSet {
 	private int involvedServers = 0;
 	private int involvedTableFragments = 0;
 
+	
 	public BenchmarkResultSet(ResultSet rs) {
 		super();
 		this.rs = rs;
